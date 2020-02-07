@@ -45,8 +45,8 @@ public class HttpUtils {
                     // 根据URL地址创建URL对象
                     url = new URL(urlString);
 
-                    httpURLConnection = obtainConnection(url, "", headers);
-
+                    httpURLConnection = obtainConnection(url, headers);
+                                        
                     // 响应码为200表示成功，否则失败。
                     if (httpURLConnection.getResponseCode() == 200) {
                         // 获取网络的输入流
@@ -125,10 +125,23 @@ public class HttpUtils {
                 HttpURLConnection httpURLConnection = null;
                 try {
                     url = new URL(urlString);
-                    httpURLConnection = obtainConnection(url, paramsStr.toString(), headers);
+                    httpURLConnection = obtainConnection(url, headers);
 
                     httpURLConnection.setRequestMethod("POST");
 
+                    // 设置运行输入
+                    httpURLConnection.setDoInput(true);
+                    // 设置运行输出
+                    httpURLConnection.setDoOutput(true);
+
+                    if (!TextUtils.isEmpty(paramsStr.toString())) {
+                        PrintWriter printWriter = new PrintWriter(httpURLConnection.getOutputStream());
+                        // 发送请求参数
+                        printWriter.write(paramsStr.toString());
+                        // flush输出流的缓冲
+                        printWriter.flush();
+                        printWriter.close();
+                    }
 
                     if (httpURLConnection.getResponseCode() == 200) {
                         // 获取网络的输入流
@@ -168,7 +181,7 @@ public class HttpUtils {
         });
     }
 
-    private static HttpURLConnection obtainConnection(URL url, String params, Map<String, Object> headers) throws IOException {
+    private static HttpURLConnection obtainConnection(URL url, Map<String, Object> headers) throws IOException {
         HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
         httpURLConnection.setRequestProperty("Content-type", "application/json");
 
@@ -181,19 +194,6 @@ public class HttpUtils {
         httpURLConnection.setConnectTimeout(30000);
         httpURLConnection.setReadTimeout(30000);
 
-        // 设置运行输入
-        httpURLConnection.setDoInput(true);
-        // 设置运行输出
-        httpURLConnection.setDoOutput(true);
-
-        if (!TextUtils.isEmpty(params)) {
-            PrintWriter printWriter = new PrintWriter(httpURLConnection.getOutputStream());
-            // 发送请求参数
-            printWriter.write(params);
-            // flush输出流的缓冲
-            printWriter.flush();
-            printWriter.close();
-        }
         return httpURLConnection;
     }
 }
