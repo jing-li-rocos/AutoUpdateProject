@@ -4,6 +4,7 @@ import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Environment;
+import android.support.annotation.NonNull;
 import android.text.TextUtils;
 
 import com.cretin.www.cretinautoupdatelibrary.activity.UpdateBackgroundActivity;
@@ -30,12 +31,22 @@ import com.cretin.www.cretinautoupdatelibrary.net.HttpCallbackModelListener;
 import com.cretin.www.cretinautoupdatelibrary.net.HttpUtils;
 import com.cretin.www.cretinautoupdatelibrary.service.UpdateReceiver;
 import com.liulishuo.filedownloader.BaseDownloadTask;
+import com.liulishuo.filedownloader.util.FileDownloadUtils;
+import com.liulishuo.okdownload.DownloadListener;
+import com.liulishuo.okdownload.DownloadTask;
+import com.liulishuo.okdownload.OkDownload;
+import com.liulishuo.okdownload.core.cause.ResumeFailedCause;
+import com.liulishuo.okdownload.core.listener.DownloadListener3;
+
+/*
+import com.liulishuo.filedownloader.BaseDownloadTask;
 import com.liulishuo.filedownloader.FileDownloadLargeFileListener;
 import com.liulishuo.filedownloader.FileDownloadListener;
 import com.liulishuo.filedownloader.FileDownloader;
 import com.liulishuo.filedownloader.connection.FileDownloadUrlConnection;
 import com.liulishuo.filedownloader.util.FileDownloadHelper;
 import com.liulishuo.filedownloader.util.FileDownloadUtils;
+*/
 
 import java.io.File;
 import java.util.ArrayList;
@@ -59,7 +70,8 @@ public class AppUpdateUtils {
     private static boolean isInit;
 
     //下载任务
-    private BaseDownloadTask downloadTask;
+    //private BaseDownloadTask downloadTask;
+    private DownloadTask downloadTask;
 
     //是否开始下载
     private static boolean isDownloading = false;
@@ -98,9 +110,12 @@ public class AppUpdateUtils {
         updateConfig = config;
         ResUtils.init(context);
 
-        FileDownloadHelper.ConnectionCreator fileDownloadConnection = null;
+        //FileDownloadHelper.ConnectionCreator fileDownloadConnection = null;
+
+
+
         //初始化文件下载库
-        if (updateConfig != null && updateConfig.getCustomDownloadConnectionCreator() != null) {
+        /*if (updateConfig != null && updateConfig.getCustomDownloadConnectionCreator() != null) {
             fileDownloadConnection = updateConfig.getCustomDownloadConnectionCreator();
         } else {
             fileDownloadConnection = new FileDownloadUrlConnection
@@ -112,7 +127,7 @@ public class AppUpdateUtils {
 
         FileDownloader.setupOnApplicationOnCreate(mContext)
                 .connectionCreator(fileDownloadConnection)
-                .commit();
+                .commit();*/
     }
 
     public static AppUpdateUtils getInstance() {
@@ -289,7 +304,7 @@ public class AppUpdateUtils {
 
         downloadInfo = info;
 
-        FileDownloader.setup(mContext);
+        //FileDownloader.setup(mContext);
 
         downloadUpdateApkFilePath = getAppLocalPath(info.getProdVersionName());
 
@@ -299,17 +314,33 @@ public class AppUpdateUtils {
             if (tempFile.length() != info.getFileSize()) {
                 AppUtils.deleteFile(downloadUpdateApkFilePath);
                 AppUtils.deleteFile(FileDownloadUtils.getTempPath(downloadUpdateApkFilePath));
+
             }
         }
 
-        downloadTask = FileDownloader.getImpl().create(info.getApkUrl())
+        DownloadTask.Builder taskBuilder = new DownloadTask.Builder(info.getApkUrl(), tempFile)
+                // the minimal interval millisecond for callback progress
+                .setMinIntervalMillisCallbackProcess(30)
+                // do re-download even if the task has already been completed in the past.
+                .setPassIfAlreadyCompleted(false);
+
+
+        taskBuilder.addHeader("Accept-Encoding", "identity");
+        taskBuilder.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.120 Safari/537.36");
+
+        downloadTask = taskBuilder.build();
+
+        downloadTask.enqueue(fileDownloadListener);
+
+
+        /*downloadTask = FileDownloader.getImpl().create(info.getApkUrl())
                 .setPath(downloadUpdateApkFilePath);
         downloadTask
                 .addHeader("Accept-Encoding", "identity")
                 .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.120 Safari/537.36")
                 .setListener(fileDownloadListener)
                 .setAutoRetryTimes(3)
-                .start();
+                .start();*/
     }
 
     /**
@@ -318,12 +349,63 @@ public class AppUpdateUtils {
     public void cancelTask() {
         isDownloading = false;
         if (downloadTask != null) {
-            downloadTask.pause();
+            downloadTask.cancel();
         }
         UpdateReceiver.cancelDownload(mContext);
     }
 
-    private FileDownloadListener fileDownloadListener = new FileDownloadLargeFileListener() {
+    private DownloadListener fileDownloadListener = new DownloadListener3() {
+
+        @Override
+        public void retry(@NonNull DownloadTask task, @NonNull ResumeFailedCause cause) {
+
+        }
+
+        @Override
+        public void connected(@NonNull DownloadTask task, int blockCount, long currentOffset, long totalLength) {
+            downloadStart();
+            if (totalLength < 0) {
+                downloadTask.cancel();
+            }
+        }
+
+        @Override
+        public void progress(@NonNull DownloadTask task, long currentOffset, long totalLength) {
+            downloading(currentOffset, totalLength);
+            if (totalLength < 0) {
+                downloadTask.cancel();
+            }
+        }
+
+        @Override
+        protected void started(@NonNull DownloadTask task) {
+        }
+
+        @Override
+        protected void completed(@NonNull DownloadTask task) {
+            downloadComplete(task.getFile().getPath());
+        }
+
+        @Override
+        protected void canceled(@NonNull DownloadTask task) {
+
+        }
+
+        @Override
+        protected void error(@NonNull DownloadTask task, @NonNull Exception e) {
+            AppUtils.deleteFile(downloadUpdateApkFilePath);
+            AppUtils.deleteFile(FileDownloadUtils.getTempPath(downloadUpdateApkFilePath));
+            downloadError(e);
+        }
+
+        @Override
+        protected void warn(@NonNull DownloadTask task) {
+
+        }
+    };
+
+    /*
+    private DownloadListener fileDownloadListener = new DownloadListener() {
         @Override
         protected void pending(BaseDownloadTask task, long soFarBytes, long totalBytes) {
             downloadStart();
@@ -364,6 +446,8 @@ public class AppUpdateUtils {
 
         }
     };
+    */
+
 
     /**
      * @param e
@@ -501,7 +585,8 @@ public class AppUpdateUtils {
      */
     public void clearAllData() {
         //删除任务中的缓存文件
-        FileDownloader.getImpl().clearAllTaskData();
+        //FileDownloader.getImpl().clearAllTaskData();
+
         //删除已经下载好的文件
         AppUtils.delAllFile(new File(AppUtils.getAppRootPath()));
     }
