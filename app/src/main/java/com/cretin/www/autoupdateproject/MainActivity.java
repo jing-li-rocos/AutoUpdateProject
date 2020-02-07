@@ -91,7 +91,7 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case R.id.action_04:
                 //获取文件MD5检验码工具
-                startActivity(new Intent(this, MD5HelperActivity.class));
+                //startActivity(new Intent(this, MD5HelperActivity.class));
                 break;
             case R.id.action_05:
                 //带提示的更新
